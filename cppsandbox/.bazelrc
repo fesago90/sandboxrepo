@@ -1,0 +1,6 @@
+# Use c++23
+build --cxxopt='-std=c++23'
+build --copt=-fdiagnostics-color=always
+
+build --features=-macos_minimum_os
+build --features=-macos_default_link_flags

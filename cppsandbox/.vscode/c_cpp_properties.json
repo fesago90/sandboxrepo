@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "bazel-cppsandbox/external/*/include/**"
+            ],
+            "intelliSenseMode": "macos-gcc-arm64",
+            "cStandard": "c23"
+        }
+    ],
+    "version": 4
+}
