@@ -5,11 +5,34 @@ on:
         required: true
         type: choice
         options:
-        - Ubuntu
         - macOS
+        - ubuntu-latest
+  push:
+    branches:
+    - main
 
 jobs:
-  test:
-    runs-on: [self-hosted, "${{ inputs.chosen-os }}"]
+  benchmark:
+    runs-on: [self-hosted]
     steps:
-    - run: echo Hello world!
+    - uses: actions/checkout@v4
+    - name: Run benchmark
+      run: |
+        cd cppsandbox
+        bazel run -c opt //example:benchmark
+
+  build:
+    runs-on: [self-hosted]
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        cd cppsandbox
+        bazel build //...
+
+  test:
+    runs-on: [self-hosted]
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        cd cppsandbox
+        bazel test //...
