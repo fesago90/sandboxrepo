@@ -11,11 +11,13 @@
 #include <span>
 #include <vector>
 
+namespace streams {
+
 struct Header {
   std::uint8_t version;
   std::uint64_t stream_index;
   std::uint16_t length;
-};
+} __attribute__((packed));
 
 auto format_as(const Header& header) {
   return fmt::format("Header {{ version: {}, stream_index: {}, length: {} }}",
@@ -124,58 +126,39 @@ auto MakeBuffer(std::uint8_t begin, std::uint32_t size) noexcept {
   return result;
 }
 
-template <typename BufStreamT>
-struct Transport {
-  Transport(BufStreamT& buf_stream) {
-    packet_stream_.set_buf_stream(buf_stream);
-  }
+template <typename Fn>
+struct OnDestruct {
+  OnDestruct(Fn&& fn) : fn(std::forward<Fn>(fn)) {}
+  ~OnDestruct() { fn(); }
+  Fn fn;
+};
 
-  std::size_t maybe_send_packets(std::size_t count = 1024) {
-    auto flush_packets = [this, count](auto&& packets) {
-      std::size_t num_sent = 0;
-      for (const auto& p : packets) {
-        // Fake not flushing all packets
-        ++num_sent;
-        if (num_sent == count) {
-          maybe_packet_ = p;
-          return std::pair(num_sent, false);
-        }
+enum class SinkSendResult { kDone, kAgain };
 
-        // fmt::println("Sending: {}", p);
-      }
-      return std::pair(num_sent, true);
-    };
-
-    std::uint64_t total_num_sent = 0;
-    bool stop = false;
-    do {
-      std::pair<int, bool> flush_result;
-      if (maybe_packet_.has_value()) {
-        auto p = std::move(*maybe_packet_);
-        maybe_packet_.reset();
-        flush_result = flush_packets(std::span(&p, 1));
-      } else {
-        flush_result =
-            flush_packets(packet_stream_.take_packets(count - total_num_sent));
-      }
-      auto&& [num_sent, all_sent] = flush_result;
-      total_num_sent += num_sent;
-      stop = !all_sent;
-
-    } while (!stop);
-
-    if (!maybe_packet_.has_value()) {
-      packet_stream_.cleanup();
+struct DummySink {
+  SinkSendResult send(const Packet& packet) {
+    if (packet.header.length > remaining_bytes_) {
+      return SinkSendResult::kAgain;
     }
-
-    return total_num_sent;
-
-    // fmt::println("maybe_send_packet sent {} packets", total_num_sent);
+    remaining_bytes_ -= packet.header.length;
+    data_.emplace_back(packet.data.begin(), packet.data.end());
+    packets.push_back(packet);
+    packets.back().data = data_.back();
+    return SinkSendResult::kDone;
   }
+
+  void add_bytes(std::size_t bytes) { remaining_bytes_ += bytes; }
+  void set_remaining_bytes(std::size_t remaining) {
+    remaining_bytes_ = remaining;
+  }
+
+  std::vector<Packet> packets;
 
  private:
-  std::optional<Packet> maybe_packet_;
-  PacketStream<BufStreamT> packet_stream_;
+  std::vector<std::vector<std::byte>> data_;
+  std::size_t remaining_bytes_ = 0;
 };
+
+}  // namespace streams
 
 #endif  // EXAMPLE_STREAMS_H_

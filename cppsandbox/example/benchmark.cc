@@ -2,6 +2,9 @@
 #include <benchmark/benchmark.h>
 
 #include "example/streams.h"
+#include "example/transport.h"
+
+using namespace streams;
 
 static void BM_BufferQueue(benchmark::State& state) {
   BufferQueue buffer_queue;
@@ -55,7 +58,7 @@ BENCHMARK(BM_PacketStream);
 
 static void BM_Transport(benchmark::State& state) {
   constexpr auto kChunkSize = PacketStream<BufferQueue>::Traits::kChunkSize;
-  constexpr auto kNumPackets = 100;
+  constexpr auto kNumPackets = 1;
   // fmt::println("kChunkSize={}", kChunkSize);
 
   BufferQueue buffer_queue;
@@ -63,10 +66,14 @@ static void BM_Transport(benchmark::State& state) {
     buffer_queue.add_buffer(MakeBuffer(0, kChunkSize));
   }
 
+  DummySink dummy_sink;
+
   // std::uint64_t total_bytes = 0;
   std::uint64_t num_packets = 0;
   for (auto _ : state) {
-    Transport<BufferQueue> transport(buffer_queue);
+    Transport<BufferQueue, DummySink> transport(buffer_queue);
+    transport.SetSink(dummy_sink);
+
     num_packets += transport.maybe_send_packets(kNumPackets);
     benchmark::DoNotOptimize(num_packets);
     benchmark::ClobberMemory();
